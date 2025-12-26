@@ -1,0 +1,46 @@
+name: Update Stacked PRs on Squash Merge (E2E Test)
+on:
+  pull_request:
+    types: [closed, synchronize]
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  update-pr-stack:
+    # Only run on actual squash merges initiated by the test script
+    if: |
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.merge_commit_sha != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch all history for all branches and tags
+          fetch-depth: 0
+          # Use a PAT token for checkout to allow pushing updates
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update PR stack
+        # Use the action from the current repository checkout
+        uses: ./
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+  continue-after-conflict-resolution:
+    # Run when a PR with the conflict label is updated (user pushed conflict resolution)
+    if: |
+      github.event.action == 'synchronize' &&
+      contains(github.event.pull_request.labels.*.name, 'autorestack-needs-conflict-resolution')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Continue PR stack update after conflict resolution
+        uses: ./
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          mode: conflict-resolved
+          pr-branch: ${{ github.event.pull_request.head.ref }}
